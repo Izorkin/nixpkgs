@@ -12,7 +12,7 @@ stdenv.mkDerivation {
 
   nativeBuildInputs = [ pkgconfig ];
   buildInputs = [ flex bison zlib proj gdal libtiff libpng fftw sqlite cairo
-  readline ffmpeg makeWrapper wxGTK30 netcdf geos postgresql mysql.client blas ]
+  readline ffmpeg makeWrapper wxGTK30 netcdf geos postgresql mysql.connector-c blas ]
     ++ (with python2Packages; [ python dateutil wxPython30 numpy ]);
 
   configureFlags = [
@@ -24,7 +24,9 @@ stdenv.mkDerivation {
     "--with-geos"
     "--with-postgres" "--with-postgres-libs=${postgresql.lib}/lib/"
     # it complains about missing libmysqld but doesn't really seem to need it
-    "--with-mysql" "--with-mysql-includes=${stdenv.lib.getDev mysql.client}/include/mysql"
+    "--with-mysql"
+    "--with-mysql-includes=${mysql.connector-c}/include/mariadb"
+    "--with-mysql-libs=${mysql.connector-c}/lib/mariadb"
     "--with-blas"
   ];
 
