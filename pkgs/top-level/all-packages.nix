@@ -11728,7 +11728,8 @@ with pkgs;
 
   rpcbind = callPackage ../servers/rpcbind { };
 
-  mariadb = callPackage ../servers/sql/mariadb {
+  mariadb = mariadb102;
+  mariadb102 = callPackage ../servers/sql/mariadb/mariadb-10.2.nix {
     inherit (darwin) cctools;
     inherit (pkgs.darwin.apple_sdk.frameworks) CoreServices;
   };
