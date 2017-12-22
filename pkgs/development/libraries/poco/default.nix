@@ -1,4 +1,4 @@
-{ stdenv, fetchurl, cmake, pkgconfig, zlib, pcre, expat, sqlite, openssl, unixODBC, libmysql }:
+{ stdenv, fetchurl, cmake, pkgconfig, zlib, pcre, expat, sqlite, openssl, unixODBC, mysql }:
 
 stdenv.mkDerivation rec {
   name = "poco-${version}";
@@ -12,10 +12,10 @@ stdenv.mkDerivation rec {
 
   nativeBuildInputs = [ cmake pkgconfig ];
 
-  buildInputs = [ zlib pcre expat sqlite openssl unixODBC libmysql ];
+  buildInputs = [ zlib pcre expat sqlite openssl unixODBC mysql.client ];
 
   cmakeFlags = [
-    "-DMYSQL_INCLUDE_DIR=${libmysql}/include/mysql"
+    "-DMYSQL_INCLUDE_DIR=${mysql.client}/include/mysql"
     "-DPOCO_UNBUNDLED=ON"
   ];
 
