@@ -8980,12 +8980,12 @@ with pkgs;
   libdbi = callPackage ../development/libraries/libdbi { };
 
   libdbiDriversBase = callPackage ../development/libraries/libdbi-drivers {
-    libmysql = null;
+    mysql.connector-c = null;
     sqlite = null;
   };
 
   libdbiDrivers = libdbiDriversBase.override {
-    inherit sqlite libmysql;
+    inherit sqlite mysql;
   };
 
   libdbusmenu-glib = callPackage ../development/libraries/libdbusmenu { };
