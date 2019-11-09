@@ -13884,6 +13884,7 @@ in
   libnghttp2 = nghttp2.lib;
 
   nghttp3 = callPackage ../development/libraries/nghttp3 { };
+  ngtcp2 = callPackage ../development/libraries/ngtcp2 { };
 
   nix-plugins = callPackage ../development/libraries/nix-plugins {
     nix = nixUnstable;
