@@ -1,21 +1,12 @@
 { lib, hwdata, pkg-config, lxc, buildGoPackage, fetchurl
 , makeWrapper, acl, rsync, gnutar, xz, btrfs-progs, gzip, dnsmasq
-, squashfsTools, iproute, iptables, ebtables, iptables-nftables-compat, libcap
+, squashfsTools, iproute, iptables, libcap
 , libco-canonical, dqlite, raft-canonical, sqlite-replication, udev
 , writeShellScriptBin, apparmor-profiles, apparmor-parser
 , criu
 , bash
 , installShellFiles
-, nftablesSupport ? false
 }:
-
-let
-  networkPkgs = if nftablesSupport then
-    [ iptables-nftables-compat ]
-  else
-    [ iptables ebtables ];
-
-in
 buildGoPackage rec {
   pname = "lxd";
   version = "4.12";
@@ -47,8 +38,7 @@ buildGoPackage rec {
     rm $out/bin/{deps,macaroon-identity,generate}
 
     wrapProgram $out/bin/lxd --prefix PATH : ${lib.makeBinPath (
-      networkPkgs
-      ++ [ acl rsync gnutar xz btrfs-progs gzip dnsmasq squashfsTools iproute bash criu ]
+      [ acl rsync gnutar xz btrfs-progs gzip dnsmasq squashfsTools iptables iproute bash criu ]
       ++ [ (writeShellScriptBin "apparmor_parser" ''
              exec '${apparmor-parser}/bin/apparmor_parser' -I '${apparmor-profiles}/etc/apparmor.d' "$@"
            '') ]

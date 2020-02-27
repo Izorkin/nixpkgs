@@ -14,7 +14,6 @@
 , pkg-config
 , ethtool
 , util-linux
-, ipset
 , fetchFromGitHub
 , fetchurl
 , fetchzip
@@ -244,7 +243,6 @@ stdenv.mkDerivation rec {
     bridge-utils
     ethtool
     util-linux
-    ipset
     conntrack-tools
   ];
 

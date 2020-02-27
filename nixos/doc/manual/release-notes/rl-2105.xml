@@ -27,6 +27,11 @@
     <para>The default Linux kernel was updated to the 5.10 LTS series, coming from the 5.4 LTS series.</para>
    </listitem>
    <listitem>
+    <para>
+     <literal>iptables</literal> now use <literal>nf_tables</literal> backend.
+    </para>
+   </listitem>
+   <listitem>
     <para>GNOME desktop environment was upgraded to 3.38, see its <link xlink:href="https://help.gnome.org/misc/release-notes/3.38/">release notes</link>.</para>
    </listitem>
    <listitem>
@@ -143,6 +148,13 @@
      move them to <option>services.udev.initrdRules</option> or see the new
      <link linkend="sec-custom-ifnames">Assigning custom names</link> section
      of the NixOS manual for an example using networkd links.
+    </para>
+   </listitem>
+   <listitem>
+    <para>
+     Since <literal>iptables</literal> now use <literal>nf_tables</literal>
+     backend and <literal>ipset</literal> doesn't support it,
+     some applications (ferm, shorewall, firehol, k3s) may have limited functionality.
     </para>
    </listitem>
    <listitem>
