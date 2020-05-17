@@ -507,6 +507,14 @@ in
         '';
       };
 
+      enableSandbox = mkOption {
+        default = false;
+        type = types.bool;
+        description = ''
+          Starting Apache httpd web server with additional sandbox/hardening options.
+        '';
+      };
+
       enableMellon = mkOption {
         type = types.bool;
         default = false;
@@ -735,9 +743,35 @@ in
           PIDFile = "${runtimeDir}/httpd.pid";
           Restart = "always";
           RestartSec = "5s";
+          # Runtime directory and mode
           RuntimeDirectory = "httpd httpd/runtime";
           RuntimeDirectoryMode = "0750";
+          # Logs directory and mode
+          LogsDirectory = "httpd";
+          LogsDirectoryMode = "0750";
+          # Capabilities
           AmbientCapabilities = [ "CAP_NET_BIND_SERVICE" ];
+          CapabilityBoundingSet = [ "CAP_NET_BIND_SERVICE" ];
+          # Security
+          NoNewPrivileges = true;
+        } // optionalAttrs cfg.enableSandbox {
+          # Sandboxing
+          ProtectSystem = "strict";
+          ProtectHome = true;
+          PrivateTmp = true;
+          PrivateDevices = true;
+          ProtectHostname = true;
+          ProtectKernelTunables = true;
+          ProtectKernelModules = true;
+          ProtectControlGroups = true;
+          RestrictAddressFamilies = [ "AF_UNIX" "AF_INET" "AF_INET6" ];
+          LockPersonality = true;
+          MemoryDenyWriteExecute = true;
+          RestrictRealtime = true;
+          RestrictSUIDSGID = true;
+          PrivateMounts = true;
+          # System Call Filtering
+          SystemCallArchitectures = "native";
         };
       };
 
