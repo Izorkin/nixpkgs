@@ -5673,6 +5673,8 @@ in
 
   libxcomp = callPackage ../development/libraries/libxcomp { };
 
+  libxcrypt = callPackage ../development/libraries/libxcrypt { };
+
   libxl = callPackage ../development/libraries/libxl {};
 
   libx86emu = callPackage ../development/libraries/libx86emu { };
