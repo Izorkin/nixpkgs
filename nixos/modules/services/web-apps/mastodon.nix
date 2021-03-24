@@ -30,7 +30,8 @@ let
   }
   // (if cfg.changeMaxTootChars != null then { MAX_TOOT_CHARS = toString(cfg.changeMaxTootChars); } else {})
   // (if cfg.redis.enableUnixSocket then { REDIS_URL = "unix:///run/redis/redis.sock"; } else {})
-  // (if cfg.smtp.authenticate then { SMTP_LOGIN  = cfg.smtp.user; } else {})
+  // (if cfg.redis.nameSpace != null then { REDIS_NAMESPACE = cfg.redis.nameSpace; } else {})
+  // (if cfg.smtp.authenticate then { SMTP_LOGIN = cfg.smtp.user; } else {})
   // cfg.extraConfig;
 
   cfgService = {
@@ -271,6 +272,16 @@ in {
           description = "Use Unix socket";
           type = lib.types.bool;
           default = true;
+        };
+
+        nameSpace = lib.mkOption {
+          description = ''
+            If provided, namespaces all Redis keys. This allows sharing the same Redis database between
+            different projects or Mastodon servers.
+          '';
+          type = lib.types.nullOr lib.types.str;
+          default = null;
+          example = "my_mastodon";
         };
       };
 
