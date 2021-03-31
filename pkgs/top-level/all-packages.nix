@@ -18535,6 +18535,7 @@ in
   nginx = nginxStable;
 
   nginxStable = callPackage ../servers/http/nginx/stable.nix {
+    zlib = zlib-ng.override { withZlibCompat = true; };
     withPerl = false;
     # We don't use `with` statement here on purpose!
     # See https://github.com/NixOS/nixpkgs/pull/10474/files#r42369334
@@ -18542,6 +18543,7 @@ in
   };
 
   nginxMainline = callPackage ../servers/http/nginx/mainline.nix {
+    zlib = zlib-ng.override { withZlibCompat = true; };
     withPerl = false;
     # We don't use `with` statement here on purpose!
     # See https://github.com/NixOS/nixpkgs/pull/10474/files#r42369334

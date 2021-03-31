@@ -117,6 +117,8 @@ stdenv.mkDerivation {
       '';
     })
     ./nix-skip-check-logs-path.patch
+    # Used the patch from here https://forum.nginx.org/read.php?21,291054,291083#msg-291083
+    ./zlib-ng.patch
   ] ++ optionals (stdenv.hostPlatform != stdenv.buildPlatform) [
     (fetchpatch {
       url = "https://raw.githubusercontent.com/openwrt/packages/master/net/nginx/patches/102-sizeof_test_fix.patch";
