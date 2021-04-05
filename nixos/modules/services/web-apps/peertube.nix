@@ -3,6 +3,51 @@
 let
   cfg = config.services.peertube;
 
+  settingsFormat = pkgs.formats.yaml {};
+  configFile = pkgs.writeText  "production.yaml" ''
+    listen:
+      hostname: 'localhost'
+      port: 9000
+
+    webserver:
+      https: true
+      hostname: '${cfg.hostname}'
+      port: 443
+
+    database:
+      hostname: '/run/postgresql'
+      port: 5432
+      ssl: false
+      suffix: '_prod'
+      username: 'peertube'
+      password: 'peertube'
+      pool:
+        max: 5
+
+    redis:
+      hostname: 'localhost'
+      port: 6379
+      auth: null
+      db: 0
+
+    storage:
+      tmp: '${cfg.runtimeDir}/storage/tmp/'
+      avatars: '${cfg.runtimeDir}/storage/avatars/'
+      videos: '${cfg.runtimeDir}/storage/videos/'
+      streaming_playlists: '${cfg.runtimeDir}/storage/streaming-playlists/'
+      redundancy: '${cfg.runtimeDir}/storage/redundancy/'
+      logs: '${cfg.runtimeDir}/storage/logs/'
+      previews: '${cfg.runtimeDir}/storage/previews/'
+      thumbnails: '${cfg.runtimeDir}/storage/thumbnails/'
+      torrents: '${cfg.runtimeDir}/storage/torrents/'
+      captions: '${cfg.runtimeDir}/storage/captions/'
+      cache: '${cfg.runtimeDir}/storage/cache/'
+      plugins: '${cfg.runtimeDir}/storage/plugins/'
+      client_overrides: '${cfg.runtimeDir}/storage/client-overrides/'
+
+    ${cfg.extraConfig}
+  '';
+
 in {
   options.services.peertube = {
     enable = lib.mkEnableOption "Enable Peertube’s service";
@@ -19,11 +64,14 @@ in {
       description = "Group under which Peertube runs";
     };
 
-    configFile = lib.mkOption {
-      type = lib.types.path;
-      description = ''
-        The configuration file path for Peertube.
-      '';
+    hostname = lib.mkOption {
+      type = lib.types.str;
+      default = "example.com";
+    };
+
+    extraConfig = lib.mkOption {
+      type = lib.types.lines;
+      default = "";
     };
 
     database = {
@@ -81,7 +129,7 @@ in {
     # Make sure the runtimeDir exists with the desired permissions.
     systemd.tmpfiles.rules = [
       "d '${cfg.runtimeDir}' 0750 ${cfg.user} ${cfg.group} - -"
-      "d '/var/www/peertube' 0750 ${cfg.user} ${cfg.group} - -"
+      "d '${cfg.runtimeDir}/storage' 0750 ${cfg.user} ${cfg.group} - -"
     ];
 
     systemd.services.peertube = {
@@ -98,7 +146,8 @@ in {
 
       script = ''
         install -m 0750 -d ${cfg.runtimeDir}/config
-        ln -sf ${cfg.configFile} ${cfg.runtimeDir}/config/production.yaml
+        ln -sf ${cfg.package}/config/default.yaml ${cfg.runtimeDir}/config/default.yaml
+        ln -sf ${configFile} ${cfg.runtimeDir}/config/production.yaml
         exec npm start
       '';
 
@@ -158,8 +207,6 @@ in {
         isSystemUser = true;
         home = cfg.runtimeDir;
         group = cfg.group;
-        # todo: fix this. needed for postgres authentication
-        password = "peertube";
       };
     };
 
