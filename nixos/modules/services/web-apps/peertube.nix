@@ -17,15 +17,15 @@ let
       hostname: '${cfg.hostname}'
       port: 443
 
+    redis:
+      hostname: '${cfg.redis.host}'
+      port: ${toString cfg.redis.port}
+
     database:
       hostname: '${cfg.database.host}'
       port: ${toString cfg.database.port}
       name: '${cfg.database.name}'
       username: '${cfg.database.user}'
-
-    redis:
-      hostname: '${cfg.redis.host}'
-      port: ${toString cfg.redis.port}
 
     storage:
       tmp: '/var/lib/peertube/storage/tmp/'
@@ -69,6 +69,41 @@ in {
     extraConfig = lib.mkOption {
       type = lib.types.lines;
       default = "";
+    };
+
+    redis = {
+      createLocally = lib.mkOption {
+        description = "Configure local Redis server for PeerTube.";
+        type = lib.types.bool;
+        default = true;
+      };
+
+      host = lib.mkOption {
+        description = "Redis host.";
+        type = lib.types.str;
+        default = "127.0.0.1";
+      };
+
+      port = lib.mkOption {
+        description = "Redis port.";
+        type = lib.types.port;
+        default = 6379;
+      };
+
+      passwordFile = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        example = "/run/keys/peertube-redis-db-password";
+        description = ''
+          Password for redis database.
+        '';
+      };
+
+      enableUnixSocket = lib.mkOption {
+        description = "Use Unix socket";
+        type = lib.types.bool;
+        default = true;
+      };
     };
 
     database = {
@@ -117,41 +152,6 @@ in {
     smtp = {
       createLocally = lib.mkOption {
         description = "Configure local Postfix SMTP server for PeerTube.";
-        type = lib.types.bool;
-        default = true;
-      };
-    };
-
-    redis = {
-      createLocally = lib.mkOption {
-        description = "Configure local Redis server for PeerTube.";
-        type = lib.types.bool;
-        default = true;
-      };
-
-      host = lib.mkOption {
-        description = "Redis host.";
-        type = lib.types.str;
-        default = "127.0.0.1";
-      };
-
-      port = lib.mkOption {
-        description = "Redis port.";
-        type = lib.types.port;
-        default = 6379;
-      };
-
-      passwordFile = lib.mkOption {
-        type = lib.types.nullOr lib.types.path;
-        default = null;
-        example = "/run/keys/peertube-redis-db-password";
-        description = ''
-          Password for redis database.
-        '';
-      };
-
-      enableUnixSocket = lib.mkOption {
-        description = "Use Unix socket";
         type = lib.types.bool;
         default = true;
       };
@@ -287,4 +287,3 @@ in {
     };
   };
 }
-
