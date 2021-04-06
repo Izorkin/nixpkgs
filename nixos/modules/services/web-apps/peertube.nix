@@ -2,6 +2,8 @@
 
 let
   cfg = config.services.peertube;
+  # We only want to create a database if we're actually going to connect to it.
+  databaseActuallyCreateLocally = cfg.database.createLocally && cfg.database.host == "/run/postgresql";
 
   settingsFormat = pkgs.formats.yaml {};
   configFile = pkgs.writeText  "production.yaml" ''
@@ -15,14 +17,10 @@ let
       port: 443
 
     database:
-      hostname: '/run/postgresql'
-      port: 5432
-      ssl: false
-      suffix: '_prod'
-      username: 'peertube'
-      password: 'peertube'
-      pool:
-        max: 5
+      hostname: '${cfg.database.host}'
+      port: '${toString cfg.database.port}'
+      name: '${cfg.database.name}'
+      username: '${cfg.database.user}'
 
     redis:
       hostname: 'localhost'
@@ -81,9 +79,22 @@ in {
         default = true;
       };
 
+      host = lib.mkOption {
+        type = lib.types.str;
+        default = "/run/postgresql";
+        example = "192.168.15.47";
+        description = "Database host address or unix socket.";
+      };
+
+      port = lib.mkOption {
+        type = lib.types.int;
+        default = 5432;
+        description = "Database host port.";
+      };
+
       name = lib.mkOption {
         type = lib.types.str;
-        default = "peertube_prod";
+        default = "peertube";
         description = "Database name.";
       };
 
@@ -91,6 +102,16 @@ in {
         type = lib.types.str;
         default = "peertube";
         description = "Database user.";
+      };
+
+      passwordFile = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        example = "/run/keys/peertube-db-password";
+        description = ''
+          A file containing the password corresponding to
+          <option>database.user</option>.
+        '';
       };
     };
 
@@ -129,14 +150,17 @@ in {
     # Make sure the runtimeDir exists with the desired permissions.
     systemd.tmpfiles.rules = [
       "d '${cfg.runtimeDir}' 0750 ${cfg.user} ${cfg.group} - -"
+      "d '${cfg.runtimeDir}/config' 0700 ${cfg.user} ${cfg.group} - -"
       "d '${cfg.runtimeDir}/storage' 0750 ${cfg.user} ${cfg.group} - -"
     ];
 
     systemd.services.peertube = {
       description = "Peertube";
       wantedBy = [ "multi-user.target" ];
-      after = [ "network.target" "postgresql.service" "redis.service" ];
-      wants = [ "postgresql.service" "redis.service" ];
+      after = [ "network.target" "redis.service" ]
+        ++ (if databaseActuallyCreateLocally then [ "postgresql.service" ] else []);
+      wants = [ "redis.service" ]
+        ++ (if databaseActuallyCreateLocally then [ "postgresql.service" ] else []);
 
       environment.NODE_CONFIG_DIR = "${cfg.runtimeDir}/config";
       environment.NODE_ENV = "production";
@@ -144,21 +168,16 @@ in {
 
       path = [ pkgs.nodejs pkgs.bashInteractive pkgs.ffmpeg pkgs.openssl pkgs.sudo pkgs.youtube-dl ];
 
-      script = ''
-        install -m 0750 -d ${cfg.runtimeDir}/config
-        ln -sf ${cfg.package}/config/default.yaml ${cfg.runtimeDir}/config/default.yaml
-        ln -sf ${configFile} ${cfg.runtimeDir}/config/production.yaml
-        exec npm start
-      '';
-
       serviceConfig = {
         Type = "simple";
-        ExecStartPre = let script = pkgs.writeScript "peertube-pre-start.sh" ''
+        ExecStart = let startScript = pkgs.writeScript "peertube-start.sh" ''
           #!/bin/sh
-          sudo -u postgres "${config.services.postgresql.package}/bin/psql" -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;" ${cfg.database.name}
-          sudo -u postgres "${config.services.postgresql.package}/bin/psql" -c "CREATE EXTENSION IF NOT EXISTS unaccent;" ${cfg.database.name}
+          install -m 0750 -d ${cfg.runtimeDir}/config
+          ln -sf ${cfg.package}/config/default.yaml ${cfg.runtimeDir}/config/default.yaml
+          ln -sf ${configFile} ${cfg.runtimeDir}/config/production.yaml
+          exec npm start
         '';
-        in "+${script}";
+        in "${startScript}";
         Restart = "always";
         RestartSec = 20;
         TimeoutSec = 60;
@@ -176,7 +195,23 @@ in {
         ProtectSystem = "full";
         PrivateTmp = true;
         ProtectControlGroups = true;
-      };
+      } // (lib.optionalAttrs (!databaseActuallyCreateLocally) {
+        ExecStartPre = let preStartScript = pkgs.writeScript "peertube-pre-start.sh" ''
+          #!/bin/sh
+          cat > ${cfg.runtimeDir}/config/local-production.yaml <<EOF
+          database:
+            password: '$(cat ${cfg.database.passwordFile})'
+          EOF
+        '';
+        in "+${preStartScript}";
+      }) // (lib.optionalAttrs databaseActuallyCreateLocally {
+        ExecStartPre = let preStartScript = pkgs.writeScript "peertube-pre-start.sh" ''
+          #!/bin/sh
+          sudo -u postgres ${config.services.postgresql.package}/bin/psql -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;" ${cfg.database.name}
+          sudo -u postgres ${config.services.postgresql.package}/bin/psql -c "CREATE EXTENSION IF NOT EXISTS unaccent;" ${cfg.database.name}
+        '';
+        in "+${preStartScript}";
+      });
 
       unitConfig.RequiresMountsFor = cfg.runtimeDir;
     };
@@ -189,17 +224,13 @@ in {
       enable = true;
     };
 
-    services.postgresql = lib.mkIf cfg.database.createLocally {
+    services.postgresql = lib.mkIf databaseActuallyCreateLocally {
       enable = true;
       ensureUsers = [{
         name = cfg.database.user;
         ensurePermissions = { "DATABASE ${cfg.database.name}" = "ALL PRIVILEGES"; };
       }];
       ensureDatabases = [ cfg.database.name ];
-      authentication = ''
-        host ${cfg.database.name} ${cfg.database.user} 127.0.0.1/32 trust
-        host ${cfg.database.name} ${cfg.database.user} 127.0.0.1/32 md5
-      '';
     };
 
     users.users = lib.optionalAttrs (cfg.user == "peertube") {
