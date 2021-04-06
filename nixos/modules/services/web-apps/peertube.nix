@@ -120,7 +120,7 @@ in {
       passwordFile = lib.mkOption {
         type = lib.types.nullOr lib.types.path;
         default = null;
-        example = "/run/keys/peertube-redis-db-password";
+        example = "/run/keys/peertube/password-redis-db";
         description = "Password for redis database";
       };
 
@@ -166,7 +166,7 @@ in {
       passwordFile = lib.mkOption {
         type = lib.types.nullOr lib.types.path;
         default = null;
-        example = "/run/keys/peertube-db-password";
+        example = "/run/keys/peertube/password-posgressql-db";
         description = "Password for PostgreSQL database";
       };
     };
