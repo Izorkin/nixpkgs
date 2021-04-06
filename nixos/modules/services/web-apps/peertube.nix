@@ -9,7 +9,6 @@ let
   settingsFormat = pkgs.formats.yaml {};
   configFile = pkgs.writeText  "production.yaml" ''
     listen:
-      hostname: 'localhost'
       port: ${toString cfg.listenHttp}
 
     webserver:
