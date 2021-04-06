@@ -10,12 +10,12 @@ let
   configFile = pkgs.writeText  "production.yaml" ''
     listen:
       hostname: 'localhost'
-      port: 9000
+      port: ${toString cfg.listenHttp}
 
     webserver:
-      https: true
+      https: ${toString (if cfg.enableWebHttps then "true" else "false")}
       hostname: '${cfg.hostname}'
-      port: 443
+      port: ${toString cfg.listenWeb}
 
     redis:
       hostname: '${cfg.redis.host}'
@@ -64,53 +64,79 @@ in {
     hostname = lib.mkOption {
       type = lib.types.str;
       default = "example.com";
+      description = "Server name of reverse proxy";
+    };
+
+    listenHttp = lib.mkOption {
+      type = lib.types.int;
+      default = 9000;
+      description = "listen port for HTTP server";
+    };
+
+    listenWeb = lib.mkOption {
+      type = lib.types.int;
+      default = 443;
+      description = "listen port for WEB server";
+    };
+
+    enableWebHttps = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = "Enable or disable HTTPS protocol";
     };
 
     extraConfig = lib.mkOption {
       type = lib.types.lines;
       default = "";
+      example = ''
+        listen:
+          hostname: '0.0.0.0'
+        trust_proxy:
+          - '192.168.10.21'
+        log:
+          level: 'debug'
+      '';
+      description = "Extra config options for peertube";
     };
 
     redis = {
       createLocally = lib.mkOption {
-        description = "Configure local Redis server for PeerTube.";
         type = lib.types.bool;
         default = true;
+        description = "Configure local Redis server for PeerTube.";
       };
 
       host = lib.mkOption {
-        description = "Redis host.";
         type = lib.types.str;
         default = "127.0.0.1";
+        description = "Redis host.";
       };
 
       port = lib.mkOption {
-        description = "Redis port.";
         type = lib.types.port;
         default = 6379;
+        description = "Redis port.";
       };
 
       passwordFile = lib.mkOption {
         type = lib.types.nullOr lib.types.path;
         default = null;
         example = "/run/keys/peertube-redis-db-password";
-        description = ''
-          Password for redis database.
-        '';
+        description = "Password for redis database";
       };
 
       enableUnixSocket = lib.mkOption {
-        description = "Use Unix socket";
         type = lib.types.bool;
         default = true;
+        description = "Use Unix socket";
       };
     };
 
     database = {
       createLocally = lib.mkOption {
-        description = "Configure local PostgreSQL database server for PeerTube.";
         type = lib.types.bool;
         default = true;
+        description = "Configure local PostgreSQL database server for PeerTube.";
       };
 
       host = lib.mkOption {
@@ -142,18 +168,15 @@ in {
         type = lib.types.nullOr lib.types.path;
         default = null;
         example = "/run/keys/peertube-db-password";
-        description = ''
-          A file containing the password corresponding to
-          <option>database.user</option>.
-        '';
+        description = "Password for PostgreSQL database";
       };
     };
 
     smtp = {
       createLocally = lib.mkOption {
-        description = "Configure local Postfix SMTP server for PeerTube.";
         type = lib.types.bool;
         default = true;
+        description = "Configure local Postfix SMTP server for PeerTube.";
       };
     };
 
