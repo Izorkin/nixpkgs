@@ -196,6 +196,33 @@ in {
 
       serviceConfig = {
         Type = "simple";
+        ExecStartPre = let preStartScript = pkgs.writeScript "peertube-pre-start.sh" ''
+          #!/bin/sh
+          cat > ${cfg.runtimeDir}/config/local-production.yaml <<EOF
+          ${lib.optionalString ((!databaseActuallyCreateLocally) && (cfg.database.passwordFile != null)) ''
+          database:
+            password: '$(cat ${cfg.database.passwordFile})'
+          ''}
+          ${lib.optionalString ((redisActuallyCreateLocally) && (cfg.redis.passwordFile == null)) ''
+          redis:
+            hostname:
+            port:
+            socket: '/run/redis/redis.sock'
+          ''}
+          ${lib.optionalString ((redisActuallyCreateLocally) && (cfg.redis.passwordFile != null)) ''
+          redis:
+            hostname:
+            port:
+            socket: '/run/redis/redis.sock'
+            auth: '$(cat ${cfg.redis.passwordFile})'
+          ''}
+          EOF
+          ${lib.optionalString databaseActuallyCreateLocally ''
+          sudo -u postgres ${config.services.postgresql.package}/bin/psql -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;" ${cfg.database.name}
+          sudo -u postgres ${config.services.postgresql.package}/bin/psql -c "CREATE EXTENSION IF NOT EXISTS unaccent;" ${cfg.database.name}
+          ''}
+        '';
+        in "+${preStartScript}";
         ExecStart = let startScript = pkgs.writeScript "peertube-start.sh" ''
           #!/bin/sh
           install -m 0750 -d ${cfg.runtimeDir}/config
@@ -221,51 +248,7 @@ in {
         ProtectSystem = "full";
         PrivateTmp = true;
         ProtectControlGroups = true;
-      } // (lib.optionalAttrs (!databaseActuallyCreateLocally) {
-        ExecStartPre = let preStartScript = pkgs.writeScript "peertube-pre-start.sh" ''
-          #!/bin/sh
-          cat > ${cfg.runtimeDir}/config/local-production.yaml <<EOF
-          database:
-            password: '$(cat ${cfg.database.passwordFile})'
-          ${lib.optionalString ((redisActuallyCreateLocally) && (cfg.redis.passwordFile == null)) ''
-          redis:
-            hostname:
-            port:
-            socket: '/run/redis/redis.sock'
-          ''}
-          ${lib.optionalString ((redisActuallyCreateLocally) && (cfg.redis.passwordFile != null)) ''
-          redis:
-            hostname:
-            port:
-            socket: '/run/redis/redis.sock'
-            auth: '$(cat ${cfg.redis.passwordFile})'
-          ''}
-          EOF
-        '';
-        in "+${preStartScript}";
-      }) // (lib.optionalAttrs databaseActuallyCreateLocally {
-        ExecStartPre = let preStartScript = pkgs.writeScript "peertube-pre-start.sh" ''
-          #!/bin/sh
-          cat > ${cfg.runtimeDir}/config/local-production.yaml <<EOF
-          ${lib.optionalString ((redisActuallyCreateLocally) && (cfg.redis.passwordFile == null)) ''
-          redis:
-            hostname:
-            port:
-            socket: '/run/redis/redis.sock'
-          ''}
-          ${lib.optionalAttrs ((redisActuallyCreateLocally) && (cfg.redis.passwordFile != null)) ''
-          redis:
-            hostname:
-            port:
-            socket: '/run/redis/redis.sock'
-            auth: '$(cat ${cfg.redis.passwordFile})'
-          ''}
-          EOF
-          sudo -u postgres ${config.services.postgresql.package}/bin/psql -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;" ${cfg.database.name}
-          sudo -u postgres ${config.services.postgresql.package}/bin/psql -c "CREATE EXTENSION IF NOT EXISTS unaccent;" ${cfg.database.name}
-        '';
-        in "+${preStartScript}";
-      });
+      };
 
       unitConfig.RequiresMountsFor = cfg.runtimeDir;
     };
