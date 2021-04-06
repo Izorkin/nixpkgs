@@ -2,7 +2,8 @@
 
 let
   cfg = config.services.peertube;
-  # We only want to create a database if we're actually going to connect to it.
+  # We only want to create a redis and database if we're actually going to connect to it.
+  redisActuallyCreateLocally = cfg.redis.createLocally && cfg.redis.host == "127.0.0.1";
   databaseActuallyCreateLocally = cfg.database.createLocally && cfg.database.host == "/run/postgresql";
 
   settingsFormat = pkgs.formats.yaml {};
@@ -18,15 +19,13 @@ let
 
     database:
       hostname: '${cfg.database.host}'
-      port: '${toString cfg.database.port}'
+      port: ${toString cfg.database.port}
       name: '${cfg.database.name}'
       username: '${cfg.database.user}'
 
     redis:
-      hostname: 'localhost'
-      port: 6379
-      auth: null
-      db: 0
+      hostname: '${cfg.redis.host}'
+      port: ${toString cfg.redis.port}
 
     storage:
       tmp: '${cfg.runtimeDir}/storage/tmp/'
@@ -129,6 +128,33 @@ in {
         type = lib.types.bool;
         default = true;
       };
+
+      host = lib.mkOption {
+        description = "Redis host.";
+        type = lib.types.str;
+        default = "127.0.0.1";
+      };
+
+      port = lib.mkOption {
+        description = "Redis port.";
+        type = lib.types.port;
+        default = 6379;
+      };
+
+      passwordFile = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        example = "/run/keys/peertube-redis-db-password";
+        description = ''
+          Password for redis database.
+        '';
+      };
+
+      enableUnixSocket = lib.mkOption {
+        description = "Use Unix socket";
+        type = lib.types.bool;
+        default = true;
+      };
     };
 
     runtimeDir = lib.mkOption {
@@ -201,12 +227,40 @@ in {
           cat > ${cfg.runtimeDir}/config/local-production.yaml <<EOF
           database:
             password: '$(cat ${cfg.database.passwordFile})'
+          ${lib.optionalString ((redisActuallyCreateLocally) && (cfg.redis.passwordFile == null)) ''
+          redis:
+            hostname:
+            port:
+            socket: '/run/redis/redis.sock'
+          ''}
+          ${lib.optionalString ((redisActuallyCreateLocally) && (cfg.redis.passwordFile != null)) ''
+          redis:
+            hostname:
+            port:
+            socket: '/run/redis/redis.sock'
+            auth: '$(cat ${cfg.redis.passwordFile})'
+          ''}
           EOF
         '';
         in "+${preStartScript}";
       }) // (lib.optionalAttrs databaseActuallyCreateLocally {
         ExecStartPre = let preStartScript = pkgs.writeScript "peertube-pre-start.sh" ''
           #!/bin/sh
+          cat > ${cfg.runtimeDir}/config/local-production.yaml <<EOF
+          ${lib.optionalString ((redisActuallyCreateLocally) && (cfg.redis.passwordFile == null)) ''
+          redis:
+            hostname:
+            port:
+            socket: '/run/redis/redis.sock'
+          ''}
+          ${lib.optionalAttrs ((redisActuallyCreateLocally) && (cfg.redis.passwordFile != null)) ''
+          redis:
+            hostname:
+            port:
+            socket: '/run/redis/redis.sock'
+            auth: '$(cat ${cfg.redis.passwordFile})'
+          ''}
+          EOF
           sudo -u postgres ${config.services.postgresql.package}/bin/psql -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;" ${cfg.database.name}
           sudo -u postgres ${config.services.postgresql.package}/bin/psql -c "CREATE EXTENSION IF NOT EXISTS unaccent;" ${cfg.database.name}
         '';
@@ -220,9 +274,15 @@ in {
       enable = true;
     };
 
-    services.redis = lib.mkIf cfg.redis.createLocally {
-      enable = true;
-    };
+    services.redis = lib.mkMerge [
+      (lib.mkIf redisActuallyCreateLocally {
+        enable = true;
+      })
+      (lib.mkIf cfg.redis.enableUnixSocket {
+        unixSocket = "/run/redis/redis.sock";
+        unixSocketPerm = 770;
+      })
+    ];
 
     services.postgresql = lib.mkIf databaseActuallyCreateLocally {
       enable = true;
@@ -233,16 +293,20 @@ in {
       ensureDatabases = [ cfg.database.name ];
     };
 
-    users.users = lib.optionalAttrs (cfg.user == "peertube") {
-     peertube  = {
-        isSystemUser = true;
-        home = cfg.runtimeDir;
-        group = cfg.group;
-      };
-    };
+    users.users = lib.mkMerge [
+      (lib.mkIf (cfg.user == "peertube") {
+        peertube = {
+          isSystemUser = true;
+          home = cfg.runtimeDir;
+          group = cfg.group;
+        };
+      })
+      (lib.mkIf cfg.redis.enableUnixSocket {${config.services.peertube.user}.extraGroups = [ "redis" ];})
+    ];
 
     users.groups = lib.optionalAttrs (cfg.group == "peertube") {
       peertube = { };
     };
   };
 }
+
