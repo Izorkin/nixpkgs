@@ -285,7 +285,7 @@ in {
         PrivateMounts = true;
         # System Call Filtering
         SystemCallArchitectures = "native";
-        SystemCallFilter = "~@clock @cpu-emulation @debug @keyring @memlock @module @mount @obsolete @raw-io @reboot @setuid @swap";
+        SystemCallFilter = "~@clock @cpu-emulation @debug @keyring @memlock @module @mount @obsolete @privileged @raw-io @reboot @setuid @swap";
       };
     };
 
