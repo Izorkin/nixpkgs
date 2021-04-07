@@ -197,19 +197,18 @@ in {
     ];
 
     systemd.services.peertube = {
-      description = "Peertube";
+      description = "PeerTube daemon";
+      after = [ "network.target" ]
+        ++ (if redisActuallyCreateLocally then [ "redis.service" ] else [])
+        ++ (if databaseActuallyCreateLocally then [ "postgresql.service" ] else []);
       wantedBy = [ "multi-user.target" ];
-      after = [ "network.target" "redis.service" ]
-        ++ (if databaseActuallyCreateLocally then [ "postgresql.service" ] else []);
-      wants = [ "redis.service" ]
-        ++ (if databaseActuallyCreateLocally then [ "postgresql.service" ] else []);
 
       environment.NODE_CONFIG_DIR = "/var/lib/peertube/config";
       environment.NODE_ENV = "production";
       environment.NODE_EXTRA_CA_CERTS = "/etc/ssl/certs/ca-certificates.crt";
       environment.HOME = cfg.package;
 
-      path = [ pkgs.nodejs pkgs.bashInteractive pkgs.ffmpeg pkgs.openssl pkgs.sudo pkgs.youtube-dl ];
+      path = with pkgs; [ bashInteractive ffmpeg nodejs openssl sudo yarn youtube-dl ];
 
       serviceConfig = {
         Type = "simple";
