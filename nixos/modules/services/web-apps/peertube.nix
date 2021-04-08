@@ -215,7 +215,7 @@ in {
         ExecStartPre = let preStartScript = pkgs.writeScript "peertube-pre-start.sh" ''
           #!/bin/sh
           umask 077
-          cat > /var/lib/peertube/config/local-production.yaml <<EOF
+          cat > /var/lib/peertube/config/local.yaml <<EOF
           ${lib.optionalString ((!databaseActuallyCreateLocally) && (cfg.database.passwordFile != null)) ''
           database:
             password: '$(cat ${cfg.database.passwordFile})'
@@ -233,8 +233,12 @@ in {
             socket: '/run/redis/redis.sock'
             auth: '$(cat ${cfg.redis.passwordFile})'
           ''}
+          ${lib.optionalString ((!redisActuallyCreateLocally) && (cfg.redis.passwordFile != null)) ''
+          redis:
+            auth: '$(cat ${cfg.redis.passwordFile})'
+          ''}
           EOF
-          chown ${cfg.user}:${cfg.group} /var/lib/peertube/config/local-production.yaml
+          chown ${cfg.user}:${cfg.group} /var/lib/peertube/config/local.yaml
           ${lib.optionalString databaseActuallyCreateLocally ''
           sudo -u postgres ${config.services.postgresql.package}/bin/psql -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;" ${cfg.database.name}
           sudo -u postgres ${config.services.postgresql.package}/bin/psql -c "CREATE EXTENSION IF NOT EXISTS unaccent;" ${cfg.database.name}
