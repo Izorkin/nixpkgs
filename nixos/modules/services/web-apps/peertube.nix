@@ -44,6 +44,34 @@ let
     ${cfg.extraConfig}
   '';
 
+  cfgService = {
+    # Access write directories
+    UMask = "0027";
+    # Capabilities
+    CapabilityBoundingSet = "";
+    # Security
+    NoNewPrivileges = true;
+    # Sandboxing
+    ProtectSystem = "strict";
+    ProtectHome = true;
+    PrivateTmp = true;
+    PrivateDevices = true;
+    PrivateUsers = true;
+    ProtectClock = true;
+    ProtectHostname = true;
+    ProtectKernelLogs = true;
+    ProtectKernelModules = true;
+    ProtectKernelTunables = true;
+    ProtectControlGroups = true;
+    RestrictNamespaces = true;
+    LockPersonality = true;
+    RestrictRealtime = true;
+    RestrictSUIDSGID = true;
+    PrivateMounts = true;
+    # System Call Filtering
+    SystemCallArchitectures = "native";
+  };
+
 in {
   options.services.peertube = {
     enable = lib.mkEnableOption "Enable Peertube’s service";
@@ -196,11 +224,35 @@ in {
       "z '/var/lib/peertube/storage' 0750 ${cfg.user} ${cfg.group} - -"
     ];
 
+    systemd.services.peertube-init-db = lib.mkIf databaseActuallyCreateLocally {
+      description = "Initialization database for PeerTube daemon";
+      after = [ "network.target" "postgresql.service" ];
+      wantedBy = [ "multi-user.target" ];
+
+      script = ''
+        ${config.services.postgresql.package}/bin/psql -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;" ${cfg.database.name}
+        ${config.services.postgresql.package}/bin/psql -c "CREATE EXTENSION IF NOT EXISTS unaccent;" ${cfg.database.name}
+      '';
+
+      serviceConfig = {
+        Type = "oneshot";
+        WorkingDirectory = cfg.package;
+        # User and group
+        User = "postgres";
+        Group = "postgres";
+        # Sandboxing
+        RestrictAddressFamilies = [ "~AF_INET" "~AF_INET6" "~AF_NETLINK" "~AF_PACKET" ];
+        MemoryDenyWriteExecute = true;
+        # System Call Filtering
+        SystemCallFilter = "~@clock @cpu-emulation @debug @keyring @memlock @module @mount @obsolete @privileged @raw-io @reboot @resources @setuid @swap";
+      } // cfgService;
+    };
+
     systemd.services.peertube = {
       description = "PeerTube daemon";
       after = [ "network.target" ]
         ++ (if redisActuallyCreateLocally then [ "redis.service" ] else [])
-        ++ (if databaseActuallyCreateLocally then [ "postgresql.service" ] else []);
+        ++ (if databaseActuallyCreateLocally then [ "postgresql.service" "peertube-init-db.service" ] else []);
       wantedBy = [ "multi-user.target" ];
 
       environment.NODE_CONFIG_DIR = "/var/lib/peertube/config";
@@ -208,7 +260,7 @@ in {
       environment.NODE_EXTRA_CA_CERTS = "/etc/ssl/certs/ca-certificates.crt";
       environment.HOME = cfg.package;
 
-      path = with pkgs; [ bashInteractive ffmpeg nodejs openssl sudo yarn youtube-dl ];
+      path = with pkgs; [ bashInteractive ffmpeg nodejs openssl yarn youtube-dl ];
 
       serviceConfig = {
         Type = "simple";
@@ -238,15 +290,10 @@ in {
             auth: '$(cat ${cfg.redis.passwordFile})'
           ''}
           EOF
-          chown ${cfg.user}:${cfg.group} /var/lib/peertube/config/local.yaml
-          ${lib.optionalString databaseActuallyCreateLocally ''
-          sudo -u postgres ${config.services.postgresql.package}/bin/psql -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;" ${cfg.database.name}
-          sudo -u postgres ${config.services.postgresql.package}/bin/psql -c "CREATE EXTENSION IF NOT EXISTS unaccent;" ${cfg.database.name}
-          ''}
-          sudo -u ${cfg.user} ln -sf ${cfg.package}/config/default.yaml /var/lib/peertube/config/default.yaml
-          sudo -u ${cfg.user} ln -sf ${configFile} /var/lib/peertube/config/production.yaml
+          ln -sf ${cfg.package}/config/default.yaml /var/lib/peertube/config/default.yaml
+          ln -sf ${configFile} /var/lib/peertube/config/production.yaml
         '';
-        in "+${preStartScript}";
+        in "${preStartScript}";
         ExecStart = let startScript = pkgs.writeScript "peertube-start.sh" ''
           #!/bin/sh
           exec npm start
@@ -262,35 +309,12 @@ in {
         # State directory and mode
         StateDirectory = "peertube";
         StateDirectoryMode = "0750";
-        # Access write directories
-        UMask = "0027";
-        # Capabilities
-        CapabilityBoundingSet = "";
-        # Security
-        NoNewPrivileges = true;
         # Sandboxing
-        ProtectSystem = "strict";
-        ProtectHome = true;
-        PrivateTmp = true;
-        PrivateDevices = true;
-        PrivateUsers = true;
-        ProtectClock = true;
-        ProtectHostname = true;
-        ProtectKernelLogs = true;
-        ProtectKernelModules = true;
-        ProtectKernelTunables = true;
-        ProtectControlGroups = true;
         RestrictAddressFamilies = [ "AF_UNIX" "AF_INET" "AF_INET6" "AF_NETLINK" ];
-        RestrictNamespaces = true;
-        LockPersonality = true;
         MemoryDenyWriteExecute = false;
-        RestrictRealtime = true;
-        RestrictSUIDSGID = true;
-        PrivateMounts = true;
         # System Call Filtering
-        SystemCallArchitectures = "native";
         SystemCallFilter = "~@clock @cpu-emulation @debug @keyring @memlock @module @mount @obsolete @privileged @raw-io @reboot @setuid @swap";
-      };
+      } // cfgService;
     };
 
     services.postfix = lib.mkIf cfg.smtp.createLocally {
